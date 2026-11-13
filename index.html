@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<!-- เว็บจองคิววัคซีน TMC (2569-11-12) — ต้นฉบับอยู่ที่ resources/tmc-booking/index.html ในระบบคลินิก
+     php artisan tmc:booking-setup ใส่ที่อยู่ Apps Script + กุญแจสาธารณะ แล้วเอาไฟล์ผลลัพธ์ไปวางบน GitHub Pages
+     ชื่อ/เบอร์/วัคซีน เข้ารหัสในเครื่องผู้จองก่อนส่ง (AES-GCM + RSA-OAEP) — Google อ่านไม่ออก · ไม่มีเลขบัตร/พาสปอร์ต -->
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>จองคิววัคซีน · Vaccine booking — ODPC1 Chiang Mai</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap">
+<style>
+  :root { --ink:#0f172a; --muted:#64748b; --line:#e2e8f0; --brand:#0f766e; --brand2:#ccfbf1; --bg:#f8fafc; --warn:#b45309; --bad:#b91c1c; --ok:#15803d; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:'IBM Plex Sans Thai', system-ui, sans-serif; color:var(--ink); background:var(--bg); font-size:16px; line-height:1.55; }
+  header { background:var(--brand); color:#fff; padding:14px 16px; display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+  header h1 { font-size:1.15rem; margin:0; font-weight:600; flex:1; min-width:14rem; }
+  header small { display:block; opacity:.85; font-weight:400; font-size:.85rem; }
+  .lang button { background:transparent; color:#fff; border:1px solid rgba(255,255,255,.6); border-radius:999px; padding:4px 12px; font:inherit; cursor:pointer; }
+  .lang button.on { background:#fff; color:var(--brand); }
+  main { max-width:720px; margin:0 auto; padding:16px; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:14px; padding:16px; margin-bottom:14px; }
+  h2 { font-size:1.1rem; margin:0 0 8px; }
+  h3 { font-size:1rem; margin:14px 0 4px; }
+  .muted { color:var(--muted); font-size:.92rem; }
+  .tabs { display:flex; gap:8px; margin-bottom:14px; }
+  .tabs button { flex:1; padding:10px; border-radius:10px; border:1px solid var(--line); background:#fff; font:inherit; font-weight:600; cursor:pointer; }
+  .tabs button.on { background:var(--brand); color:#fff; border-color:var(--brand); }
+  .notice { max-height:320px; overflow:auto; border:1px solid var(--line); border-radius:10px; padding:10px 12px; background:#fcfcfd; font-size:.93rem; }
+  .notice ol { padding-left:1.2rem; margin:6px 0; }
+  .btn { display:inline-block; padding:11px 18px; border-radius:10px; border:0; background:var(--brand); color:#fff; font:inherit; font-weight:600; cursor:pointer; text-decoration:none; }
+  .btn:disabled { opacity:.5; cursor:not-allowed; }
+  .btn.ghost { background:#fff; color:var(--brand); border:1px solid var(--brand); }
+  /* ปฏิทินรายเดือน — วันหยุด/เสาร์อาทิตย์/วันเต็ม ล็อก (กดไม่ได้) */
+  .cal-head { display:flex; align-items:center; justify-content:space-between; margin:4px 0 8px; }
+  .cal-head b { font-size:1.05rem; }
+  .cal-nav { border:1px solid var(--line); background:#fff; border-radius:8px; padding:4px 12px; font:inherit; cursor:pointer; }
+  .cal-nav:disabled { opacity:.35; cursor:not-allowed; }
+  .cal { display:grid; grid-template-columns:repeat(7, 1fr); gap:4px; }
+  .cal .wd { text-align:center; font-size:.8rem; color:var(--muted); font-weight:600; padding-bottom:2px; }
+  .cell { min-height:62px; border:1px solid var(--line); border-radius:8px; padding:3px 4px; background:#fff; font-size:.78rem; line-height:1.25; text-align:left; font-family:inherit; color:var(--ink); }
+  .cell .n { font-weight:700; font-size:.95rem; }
+  .cell.open { cursor:pointer; border-color:#5eead4; background:#f0fdfa; }
+  .cell.open:hover { background:#ccfbf1; }
+  .cell.sel { background:var(--brand) !important; color:#fff; border-color:var(--brand); }
+  .cell.locked { background:#f1f5f9; color:#94a3b8; cursor:not-allowed; }
+  .cell.hol { background:#fef2f2; color:#b91c1c; }
+  .cell.blank { border:0; background:transparent; }
+  .legend { display:flex; flex-wrap:wrap; gap:10px; font-size:.82rem; color:var(--muted); margin-top:8px; }
+  .legend i { display:inline-block; width:12px; height:12px; border-radius:3px; vertical-align:-1px; margin-right:4px; border:1px solid var(--line); }
+  .slots { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+  .slot { flex:1; min-width:10rem; padding:10px; border-radius:10px; border:1px solid var(--brand); background:#fff; color:var(--brand); font:inherit; cursor:pointer; text-align:left; }
+  .slot.on { background:var(--brand); color:#fff; }
+  .slot:disabled { border-color:var(--line); color:#94a3b8; cursor:not-allowed; background:#f1f5f9; }
+  .hp { position:absolute; left:-9999px; width:1px; height:1px; overflow:hidden; }
+  .shot { border:3px dashed #f59e0b; background:#fffbeb; border-radius:14px; padding:14px; margin:12px 0; }
+  .shot .big { font-size:1.15rem; font-weight:700; color:#92400e; }
+  .ticket { border:2px solid var(--brand); border-radius:14px; padding:14px; text-align:center; background:#fff; margin:10px 0; }
+  .ticket .sum { margin-top:8px; font-weight:600; }
+  label.chk { display:flex; gap:8px; align-items:flex-start; padding:4px 0; cursor:pointer; }
+  input[type=text], input[type=tel], textarea, select { width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:8px; font:inherit; }
+  .person { border:1px dashed #94a3b8; border-radius:10px; padding:10px; margin-top:8px; }
+  .row { display:flex; gap:10px; flex-wrap:wrap; } .row > * { flex:1; min-width:12rem; }
+  .err { color:var(--bad); font-weight:600; margin-top:8px; }
+  .code { font-size:2rem; font-weight:700; letter-spacing:.08em; font-family:ui-monospace, monospace; background:var(--brand2); border-radius:12px; padding:10px 16px; display:inline-block; }
+  .pill { display:inline-block; padding:2px 10px; border-radius:999px; font-weight:600; color:#fff; }
+  .hidden { display:none !important; }
+  .units { font-weight:600; color:var(--warn); }
+  footer { text-align:center; color:var(--muted); font-size:.85rem; padding:20px 16px 40px; }
+</style>
+</head>
+<body>
+<header>
+  <h1 data-t="title"></h1>
+  <div class="lang"><button type="button" data-lang="th">ไทย</button> <button type="button" data-lang="en">English</button></div>
+</header>
+<main>
+  <div class="tabs">
+    <button type="button" id="tabBook" class="on" data-t="tabBook"></button>
+    <button type="button" id="tabCheck" data-t="tabCheck"></button>
+  </div>
+
+  <!-- ===== จอง ===== -->
+  <section id="book">
+    <!-- 1. ประกาศความเป็นส่วนตัว + ความยินยอม -->
+    <div class="card" id="stepNotice">
+      <h2 data-t="noticeH"></h2>
+      <div class="notice" id="noticeBody"></div>
+      <label class="chk" style="margin-top:10px;"><input type="checkbox" id="consent"> <span data-t="consent"></span></label>
+      <button type="button" class="btn" id="toForm" disabled data-t="next"></button>
+    </div>
+
+    <!-- 2. ฟอร์มจอง -->
+    <div id="stepForm" class="hidden">
+      <div class="card" id="closedCard" style="display:none;"><b data-t="closed"></b></div>
+      <div class="card">
+        <h2 data-t="pickH"></h2>
+        <div class="muted" data-t="pickHint"></div>
+        <div id="days" style="margin-top:10px;"><div class="muted" data-t="loading"></div></div>
+        <div id="slots" class="slots"></div>
+      </div>
+      <div class="card">
+        <h2 data-t="peopleH"></h2>
+        <div class="muted" data-t="peopleHint"></div>
+        <div class="row" style="margin-top:8px;">
+          <div><select id="people"></select></div>
+          <div class="units" id="unitsInfo"></div>
+        </div>
+        <div id="persons"></div>
+      </div>
+      <div class="card">
+        <h2 data-t="contactH"></h2>
+        <div class="muted" data-t="contactHint"></div>
+        <div class="row" style="margin-top:8px;">
+          <div><label class="muted" data-t="name"></label><input type="text" id="name" maxlength="100" autocomplete="name"></div>
+          <div><label class="muted" data-t="phone"></label><input type="tel" id="phone" maxlength="30" autocomplete="tel"></div>
+        </div>
+        <div style="margin-top:8px;"><label class="muted" data-t="note"></label><textarea id="note" rows="2" maxlength="500"></textarea></div>
+      </div>
+      <div class="card">
+        <div id="summary" class="muted"></div>
+        <!-- ช่องดักบอท: คนมองไม่เห็น บอทมักกรอกทุกช่อง -->
+        <div class="hp" aria-hidden="true"><label>Website <input type="text" id="website" tabindex="-1" autocomplete="off"></label></div>
+        <div id="ts" style="margin-top:10px;"></div>
+        <div class="err" id="err"></div>
+        <button type="button" class="btn" id="submit" data-t="submit"></button>
+      </div>
+    </div>
+
+    <!-- 3. จองแล้ว -->
+    <div class="card hidden" id="stepDone">
+      <h2 data-t="doneH"></h2>
+      <div class="ticket" id="ticket">
+        <div class="muted" data-t="ticketH"></div>
+        <div class="code" id="doneCode"></div>
+        <div class="sum" id="doneSum"></div>
+        <div class="muted" id="doneNow" style="margin-top:4px;"></div>
+      </div>
+      <div class="shot">
+        <div class="big">📸 <span data-t="shotH"></span></div>
+        <div data-t="shotBody"></div>
+        <button type="button" class="btn ghost" id="saveImg" style="margin-top:8px;" data-t="saveImg"></button>
+      </div>
+      <p data-t="doneSave"></p>
+      <h3 data-t="doneLineH"></h3>
+      <ol>
+        <li><span data-t="doneLine1"></span> <a href="https://line.me/R/ti/p/%40352bavoo" target="_blank" rel="noopener"><b>@352bavoo</b></a></li>
+        <li data-t="doneLine2"></li>
+      </ol>
+      <p class="muted" data-t="doneNoLine"></p>
+      <p class="muted" data-t="doneChange"></p>
+      <button type="button" class="btn ghost" id="again" data-t="again"></button>
+    </div>
+  </section>
+
+  <!-- ===== เช็คสถานะ ===== -->
+  <section id="check" class="hidden">
+    <div class="card">
+      <h2 data-t="checkH"></h2>
+      <div class="row">
+        <div><input type="text" id="checkCode" placeholder="TMC-XXXXXX" maxlength="12" style="text-transform:uppercase;"></div>
+        <div style="flex:0 0 auto; min-width:0;"><button type="button" class="btn" id="checkBtn" data-t="checkBtn"></button></div>
+      </div>
+      <div id="checkOut" style="margin-top:12px;"></div>
+    </div>
+  </section>
+</main>
+<footer data-t="footer"></footer>
+
+<script>
+(function () {
+  var RELAY = 'https://script.google.com/macros/s/AKfycbwg3DCbdsRd_knpuz-FhsmRCdO9cFzimP20cr3EhovQ9Fbn6P-jhDPVYW8gEUIxDOUL/exec';
+  var PUBKEY = 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAkEo4F6q91IhAeIzh06zn2mDPZB5KpAblGqredq10LGQry6LmEXi8d0vQUjfnNUEG4tpkn0IU0hRvkvJ4KwSm4bbMqBipTUFtLHwMuGN9LrQOVDn7LgqvEO2Df/AbnN7HIknTc8YwPWPI+adGeXeMbkSqtzi9eOvWi8rjMZnBimK/zDqAhCKwhxHarANf+KutSgD5Lo0KxbhYqtbU4TfSEWfI3f4bCA1nXliMdCspidxhFo5s405QLmlWu3YRr90Hdtmlnol9MZjfgqP75rfwWmOEUN94s2n+aYq20eyLhQlFOBHg0Ou8Yo6TObpEbtb9nPOhPFYEXS98k/vFMS8lFwIDAQAB';
+  var TS_KEY = '';   // ว่าง = ไม่ใช้ Turnstile
+  var t0 = Date.now(), tsToken = '', tsWidget = null, calMonth = null;
+  var $ = function (id) { return document.getElementById(id); };
+
+  var T = {
+    th: {
+      title: 'จองคิววัคซีนต่างประเทศ / เวชศาสตร์การเดินทาง<small>ศูนย์บริการเวชศาสตร์ป้องกัน สำนักงานป้องกันควบคุมโรคที่ 1 เชียงใหม่</small>',
+      tabBook: 'จองคิว', tabCheck: 'เช็คสถานะการจอง',
+      noticeH: 'ประกาศความเป็นส่วนตัวสำหรับการจองคิว', consent: 'ข้าพเจ้าได้อ่านประกาศนี้แล้ว และยินยอมให้เก็บและใช้ข้อมูลตามที่แจ้ง เพื่อการนัดหมายรับวัคซีน', next: 'ถัดไป',
+      closed: 'ขณะนี้ยังไม่เปิดรับจองทางเว็บ กรุณาติดต่อคลินิก โทร 053-140774', loading: 'กำลังโหลด…',
+      pickH: '1. เลือกวันและรอบ', pickHint: 'เปิด จันทร์–ศุกร์ (ยกเว้นวันหยุดราชการ) · รอบเช้า 08:30–11:30 · รอบบ่าย 13:00–15:00 · ปิดรับจองแต่ละวันเวลา 09:00 ของวันนั้น',
+      morning: 'เช้า', afternoon: 'บ่าย', left: 'ว่าง', full: 'เต็ม', persons: 'คน',
+      peopleH: '2. จำนวนผู้รับบริการ และวัคซีนที่ต้องการ', peopleHint: 'จองได้ครั้งละ 1–5 คน · คนที่รับวัคซีน 3 รายการขึ้นไป ใช้เวลานาน นับเป็น 2 ที่',
+      person: 'คนที่', label: 'ชื่อเรียก (ไม่บังคับ)', other: 'วัคซีนอื่น / ไม่แน่ใจ (พิมพ์บอก)', unitsInfo: 'ใช้ที่ทั้งหมด {n} ที่',
+      contactH: '3. ข้อมูลติดต่อ', contactHint: 'ใช้ติดต่อเรื่องนัดเท่านั้น ไม่ต้องกรอกเลขบัตรประชาชน/พาสปอร์ต (กรอกที่คลินิกในวันที่มา)',
+      name: 'ชื่อผู้ติดต่อ', phone: 'เบอร์โทรศัพท์', note: 'ข้อความถึงคลินิก (ไม่บังคับ) เช่น ประเทศที่จะเดินทาง วันเดินทาง',
+      submit: 'ส่งการจอง', sending: 'กำลังส่ง…',
+      summary: 'จอง {date} รอบ{slot} · {people} คน (ใช้ {units} ที่)',
+      eDate: 'กรุณาเลือกวันและรอบ', eName: 'กรุณากรอกชื่อและเบอร์โทร', eVaccine: 'กรุณาเลือกวัคซีนอย่างน้อย 1 รายการให้ทุกคน (หรือพิมพ์ในช่องวัคซีนอื่น)',
+      eFull: 'รอบนี้ที่ไม่พอแล้ว กรุณาเลือกรอบหรือวันอื่น', eCutoff: 'เลยเวลาปิดรับจองของวันนี้แล้ว (09:00) กรุณาเลือกวันอื่น',
+      eClosedDay: 'วันนี้ไม่เปิดรับจอง กรุณาเลือกวันอื่น', eMany: 'ส่งหลายครั้งเกินไป กรุณารอ 1 ชั่วโมง หรือโทรหาคลินิก', eClosed: 'ปิดรับจองทางเว็บแล้ว', eSend: 'ส่งไม่สำเร็จ กรุณาลองใหม่',
+      doneH: 'ส่งการจองแล้ว — รอเจ้าหน้าที่ยืนยัน', ticketH: 'รหัสจองของท่าน', ticketSum: '{date} · รอบ{slot} · {people} คน', ticketNow: 'จองเมื่อ {t}',
+      shotH: 'ไม่มี LINE? แคปหน้าจอนี้เก็บไว้เลย',
+      shotBody: 'กดปุ่มถ่ายภาพหน้าจอของโทรศัพท์ (หรือกด "บันทึกเป็นรูป" ด้านล่าง) เก็บรหัสจองไว้ ใช้เช็คผลยืนยันในแท็บ "เช็คสถานะการจอง" และแสดงกับเจ้าหน้าที่ในวันที่มา · ถ้าทำรหัสหาย เจ้าหน้าที่ค้นให้จากชื่อและเบอร์โทรได้',
+      saveImg: '⬇ บันทึกเป็นรูป',
+      calPrev: '‹ เดือนก่อน', calNext: 'เดือนถัดไป ›', lgOpen: 'จองได้', lgFull: 'เต็ม', lgHol: 'วันหยุด', lgOff: 'ปิด/เลยกำหนด',
+      pickSlot: 'เลือกรอบของวันที่ {date}', weekend: 'เสาร์-อาทิตย์', past: 'เลยกำหนด',
+      eBot: 'ระบบยืนยันว่าไม่ใช่บอทไม่ผ่าน กรุณาทำเครื่องหมายยืนยันอีกครั้ง', eFast: 'กรุณาตรวจข้อมูลอีกครั้ง แล้วกดส่ง', eTs: 'กรุณารอให้ช่องยืนยัน "ไม่ใช่บอท" ขึ้นเครื่องหมายถูกก่อน', doneSave: 'นี่คือรหัสจองของท่าน กรุณาจดหรือถ่ายภาพหน้าจอเก็บไว้ ใช้เช็คสถานะและแจ้งยกเลิก/เลื่อนนัด',
+      doneLineH: 'รับแจ้งผลทาง LINE (แนะนำ)', doneLine1: 'เพิ่มเพื่อน LINE ของคลินิก', doneLine2: 'พิมพ์รหัสจองข้างบนส่งในแชต — เจ้าหน้าที่ยืนยันแล้วระบบจะแจ้งทาง LINE',
+      doneNoLine: 'ไม่มี LINE: เช็คผลได้ที่แท็บ "เช็คสถานะการจอง" ด้วยรหัสจอง · เจ้าหน้าที่ยืนยันภายใน 10:00 ของวันทำการถัดไป',
+      doneChange: 'ยกเลิกหรือเลื่อนนัด: แจ้งทาง LINE หรือโทร 053-140774 (ทำในเว็บไม่ได้)', again: 'จองเพิ่ม',
+      checkH: 'เช็คสถานะด้วยรหัสจอง', checkBtn: 'เช็ค', notFound: 'ไม่พบรหัสจองนี้ — ตรวจรหัสอีกครั้ง หรือรอ 2–3 นาทีหลังจอง',
+      st: { pending: 'รอยืนยัน', confirmed: 'ยืนยันแล้ว', rejected: 'ไม่รับจอง', cancelled: 'ยกเลิก', arrived: 'มารับบริการแล้ว', no_show: 'ไม่ได้มาตามนัด' },
+      stHint: { pending: 'เจ้าหน้าที่จะยืนยันภายใน 10:00 ของวันทำการถัดไป', confirmed: 'กรุณามาตามวันและรอบที่จอง พร้อมพาสปอร์ต/บัตรประชาชน', rejected: 'กรุณาเลือกวันใหม่ หรือติดต่อคลินิก', cancelled: '' },
+      footer: 'ศูนย์บริการเวชศาสตร์ป้องกัน สคร.1 เชียงใหม่ · 143 ถ.ศรีดอนไชย อ.เมือง จ.เชียงใหม่ · โทร 053-140774',
+      days: ['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.'], months: ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'],
+      notice: '<p>สำนักงานป้องกันควบคุมโรคที่ 1 เชียงใหม่ กรมควบคุมโรค (“สำนักงานฯ”) จัดทำประกาศนี้เพื่อแจ้งการเก็บและใช้ข้อมูลส่วนบุคคลของท่านในการจองคิวรับวัคซีนผ่านเว็บไซต์นี้ ตามพระราชบัญญัติคุ้มครองข้อมูลส่วนบุคคล พ.ศ. 2562</p>'
+        + '<ol><li><b>ข้อมูลที่เก็บ:</b> ชื่อผู้ติดต่อ เบอร์โทรศัพท์ วันและรอบที่จอง จำนวนผู้รับบริการ วัคซีนที่ต้องการ และข้อความที่ท่านพิมพ์ถึงคลินิก · ไม่เก็บเลขบัตรประชาชน พาสปอร์ต หรือวันเกิดในขั้นตอนนี้</li>'
+        + '<li><b>วัตถุประสงค์:</b> เพื่อจัดคิว ยืนยันนัด และติดต่อท่านเรื่องนัดหมายเท่านั้น</li>'
+        + '<li><b>ฐานทางกฎหมาย:</b> ข้อมูลวัคซีนที่ต้องการเป็นข้อมูลสุขภาพ สำนักงานฯ จึงขอความยินยอมโดยชัดแจ้งจากท่าน (มาตรา 26) · ท่านถอนความยินยอมได้โดยแจ้งคลินิก ซึ่งจะยกเลิกการจองนั้น</li>'
+        + '<li><b>การเก็บรักษาและความปลอดภัย:</b> ข้อมูลถูกเข้ารหัสในเครื่องของท่านก่อนส่ง และพักไว้ชั่วคราวที่บริการของ Google เพื่อรอระบบของคลินิกมารับ เมื่อคลินิกรับข้อมูลแล้วจะลบออกจาก Google ทันที (ไม่เกิน 6 ชั่วโมง) ที่ Google เหลือเพียงรหัสจอง วันที่ รอบ จำนวนคน และสถานะ ไว้ให้ท่านเช็คสถานะ ไม่เกิน 14 วันหลังวันนัด</li>'
+        + '<li><b>การเปิดเผย:</b> ใช้ภายในคลินิกเพื่อการนัดหมาย ไม่เปิดเผยแก่บุคคลภายนอก เว้นแต่กฎหมายกำหนด</li>'
+        + '<li><b>สิทธิของท่าน:</b> ขอเข้าถึง แก้ไข ลบ หรือคัดค้านการใช้ข้อมูล และถอนความยินยอม โดยติดต่อช่องทางด้านล่าง</li>'
+        + '<li><b>ติดต่อ:</b> ศูนย์บริการเวชศาสตร์ป้องกัน สคร.1 เชียงใหม่ 143 ถนนศรีดอนไชย ตำบลช้างคลาน อำเภอเมือง จังหวัดเชียงใหม่ 50100 โทร 053-140774 · เจ้าหน้าที่คุ้มครองข้อมูลส่วนบุคคล (DPO) กรมควบคุมโรค dpo@ddc.mail.go.th</li></ol>'
+    },
+    en: {
+      title: 'Travel vaccine booking<small>Preventive Medicine Service Center, Office of Disease Prevention and Control Region 1, Chiang Mai</small>',
+      tabBook: 'Book', tabCheck: 'Check my booking',
+      noticeH: 'Privacy notice for online booking', consent: 'I have read this notice and consent to the collection and use of my information as described, for my vaccination appointment.', next: 'Next',
+      closed: 'Online booking is not open at the moment. Please call the clinic: +66 53 140 774', loading: 'Loading…',
+      pickH: '1. Choose a date and time', pickHint: 'Open Monday–Friday (except public holidays) · Morning 08:30–11:30 · Afternoon 13:00–15:00 · Booking for a day closes at 09:00 that day',
+      morning: 'Morning', afternoon: 'Afternoon', left: 'left', full: 'Full', persons: 'people',
+      peopleH: '2. Number of people and vaccines', peopleHint: '1–5 people per booking · A person receiving 3 or more vaccines takes longer and counts as 2 places',
+      person: 'Person', label: 'Name or nickname (optional)', other: 'Other vaccine / not sure (type here)', unitsInfo: 'Uses {n} place(s)',
+      contactH: '3. Contact details', contactHint: 'Used only to contact you about the appointment. No ID or passport number needed now (you will give it at the clinic).',
+      name: 'Contact name', phone: 'Phone number', note: 'Message to the clinic (optional), e.g. destination country and travel date',
+      submit: 'Send booking', sending: 'Sending…',
+      summary: '{date} · {slot} · {people} person(s) (uses {units} place(s))',
+      eDate: 'Please choose a date and time', eName: 'Please enter your name and phone number', eVaccine: 'Please choose at least one vaccine for each person (or type in "Other")',
+      eFull: 'Not enough places left in this session. Please choose another time or date.', eCutoff: 'Booking for today has closed (09:00). Please choose another date.',
+      eClosedDay: 'This date is not open for booking. Please choose another date.', eMany: 'Too many attempts. Please wait an hour or call the clinic.', eClosed: 'Online booking is closed.', eSend: 'Could not send. Please try again.',
+      doneH: 'Booking sent — waiting for confirmation', ticketH: 'Your booking code', ticketSum: '{date} · {slot} · {people} person(s)', ticketNow: 'Booked at {t}',
+      shotH: 'No LINE? Take a screenshot of this screen now',
+      shotBody: 'Take a screenshot (or tap "Save as image" below) to keep your booking code. Use it to check the confirmation in the "Check my booking" tab, and show it to staff on the day. If you lose it, staff can find your booking by name and phone number.',
+      saveImg: '⬇ Save as image',
+      calPrev: '‹ Previous', calNext: 'Next ›', lgOpen: 'Available', lgFull: 'Full', lgHol: 'Holiday', lgOff: 'Closed / passed',
+      pickSlot: 'Choose a session for {date}', weekend: 'Weekend', past: 'Closed',
+      eBot: 'The "not a robot" check failed. Please tick the check again.', eFast: 'Please check your details, then send again.', eTs: 'Please wait for the "not a robot" check to show a tick first.', doneSave: 'This is your booking code. Please write it down or take a screenshot. You need it to check the status and to cancel or change.',
+      doneLineH: 'Get the result on LINE (recommended)', doneLine1: 'Add the clinic as a LINE friend:', doneLine2: 'Send the booking code above in the chat. When staff confirm, you will be notified on LINE.',
+      doneNoLine: 'No LINE? Check the result in the "Check my booking" tab with your code. Staff confirm by 10:00 on the next working day.',
+      doneChange: 'To cancel or change: message us on LINE or call +66 53 140 774 (not possible on this website).', again: 'Make another booking',
+      checkH: 'Check status with your booking code', checkBtn: 'Check', notFound: 'Booking code not found — please check it, or wait 2–3 minutes after booking.',
+      st: { pending: 'Waiting for confirmation', confirmed: 'Confirmed', rejected: 'Not accepted', cancelled: 'Cancelled', arrived: 'Attended', no_show: 'Did not attend' },
+      stHint: { pending: 'Staff will confirm by 10:00 on the next working day.', confirmed: 'Please come on the booked date and session with your passport/ID.', rejected: 'Please choose a new date or contact the clinic.', cancelled: '' },
+      footer: 'Preventive Medicine Service Center, ODPC1 Chiang Mai · 143 Sri Don Chai Rd, Mueang, Chiang Mai · Tel +66 53 140 774',
+      days: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'], months: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+      notice: '<p>The Office of Disease Prevention and Control Region 1, Chiang Mai, Department of Disease Control (“the Office”) issues this notice about how your personal data is collected and used when you book a vaccination appointment on this website, under the Thai Personal Data Protection Act B.E. 2562 (2019).</p>'
+        + '<ol><li><b>Data collected:</b> contact name, phone number, booked date and session, number of people, vaccines requested, and any message you write. We do not collect ID card or passport numbers or dates of birth at this step.</li>'
+        + '<li><b>Purpose:</b> only to schedule and confirm your appointment and contact you about it.</li>'
+        + '<li><b>Legal basis:</b> the vaccines you request are health data, so the Office asks for your explicit consent (Section 26). You may withdraw consent by contacting the clinic, which will cancel that booking.</li>'
+        + '<li><b>Storage and security:</b> your data is encrypted on your device before it is sent, and held temporarily on a Google service until the clinic system collects it. Once collected it is deleted from Google immediately (within 6 hours at most). Only the booking code, date, session, number of people and status remain on Google so you can check your status, for up to 14 days after the appointment.</li>'
+        + '<li><b>Disclosure:</b> used within the clinic for appointments only, and not disclosed to others unless required by law.</li>'
+        + '<li><b>Your rights:</b> you may request access, correction or deletion, object to processing, or withdraw consent using the contacts below.</li>'
+        + '<li><b>Contact:</b> Preventive Medicine Service Center, ODPC1 Chiang Mai, 143 Sri Don Chai Road, Chang Khlan, Mueang, Chiang Mai 50100, Tel +66 53 140 774 · Data Protection Officer, Department of Disease Control: dpo@ddc.mail.go.th</li></ol>'
+    }
+  };
+
+  var lang = (localStorage.getItem('tmcbk_lang') || (navigator.language || '').slice(0, 2)) === 'th' ? 'th' : 'en';
+  try { if (localStorage.getItem('tmcbk_lang')) lang = localStorage.getItem('tmcbk_lang'); } catch (e) {}
+  var dev; try { dev = localStorage.getItem('tmcbk_dev'); if (!dev) { dev = Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem('tmcbk_dev', dev); } } catch (e) { dev = 'nostore'; }
+  var state = null, pick = { date: '', slot: '' };
+
+  function t(k) { return T[lang][k]; }
+  function fmt(s, o) { return s.replace(/\{(\w+)\}/g, function (m, k) { return o[k]; }); }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function dLabel(ad) {
+    var p = ad.split('-'), d = new Date(+p[0], +p[1] - 1, +p[2]);
+    return T[lang].days[d.getDay()] + ' ' + d.getDate() + ' ' + T[lang].months[d.getMonth()] + ' ' + (lang === 'th' ? d.getFullYear() + 543 : d.getFullYear());
+  }
+
+  function applyLang() {
+    document.documentElement.lang = lang;
+    document.querySelectorAll('[data-t]').forEach(function (el) { var v = t(el.dataset.t); if (typeof v === 'string') el.innerHTML = v; });
+    document.querySelectorAll('.lang button').forEach(function (b) { b.classList.toggle('on', b.dataset.lang === lang); });
+    $('noticeBody').innerHTML = t('notice');
+    renderDays(); renderPersons(true); summary();
+  }
+  document.querySelectorAll('.lang button').forEach(function (b) {
+    b.onclick = function () { lang = b.dataset.lang; try { localStorage.setItem('tmcbk_lang', lang); } catch (e) {} applyLang(); };
+  });
+
+  $('tabBook').onclick = function () { $('book').classList.remove('hidden'); $('check').classList.add('hidden'); this.classList.add('on'); $('tabCheck').classList.remove('on'); };
+  $('tabCheck').onclick = function () { $('check').classList.remove('hidden'); $('book').classList.add('hidden'); this.classList.add('on'); $('tabBook').classList.remove('on'); };
+
+  $('consent').onchange = function () { $('toForm').disabled = !this.checked; };
+  $('toForm').onclick = function () { $('stepNotice').classList.add('hidden'); $('stepForm').classList.remove('hidden'); loadState(); loadTurnstile(); t0 = Date.now(); window.scrollTo(0, 0); };
+
+  function loadState() {
+    fetch(RELAY + '?action=state').then(function (r) { return r.json(); }).then(function (j) {
+      state = j; $('closedCard').style.display = j.open ? 'none' : '';
+      renderDays(); renderPersons(true);
+    }).catch(function () { $('days').innerHTML = '<div class="err">' + esc(t('eSend')) + '</div>'; });
+  }
+
+  // ปฏิทินรายเดือน: วันที่อยู่ในรายการ days = เปิด · closed = วันหยุด (มีชื่อ) · เสาร์-อาทิตย์/เลยกำหนด/เกินระยะจอง = ล็อก
+  function ymd(d) { return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
+  function renderDays() {
+    if (!state) return;
+    var box = $('days');
+    if (!state.open || !(state.days || []).length) { box.innerHTML = '<div class="muted">' + esc(t('closed')) + '</div>'; $('slots').innerHTML = ''; return; }
+    var open = {}, hol = {};
+    state.days.forEach(function (d) { open[d.d] = d; });
+    (state.closed || []).forEach(function (c) { hol[c.d] = c.name; });
+    var first = state.days[0].d, last = state.days[state.days.length - 1].d;
+    var today = state.today || first;
+    if (!calMonth) calMonth = first.slice(0, 7);
+    var y = +calMonth.slice(0, 4), m = +calMonth.slice(5, 7) - 1;
+    var start = new Date(y, m, 1), lead = (start.getDay() + 6) % 7;   // เริ่มสัปดาห์วันจันทร์
+    var dim = new Date(y, m + 1, 0).getDate();
+    var wd = T[lang].days.slice(1).concat(T[lang].days[0]);
+    var mName = T[lang].months[m] + ' ' + (lang === 'th' ? y + 543 : y);
+    var html = '<div class="cal-head"><button type="button" class="cal-nav" data-nav="-1"' + (calMonth <= first.slice(0, 7) ? ' disabled' : '') + '>' + esc(t('calPrev')) + '</button>'
+      + '<b>' + esc(mName) + '</b><button type="button" class="cal-nav" data-nav="1"' + (calMonth >= last.slice(0, 7) ? ' disabled' : '') + '>' + esc(t('calNext')) + '</button></div>'
+      + '<div class="cal">' + wd.map(function (w) { return '<div class="wd">' + esc(w) + '</div>'; }).join('');
+    for (var i = 0; i < lead; i++) html += '<div class="cell blank"></div>';
+    for (var dd = 1; dd <= dim; dd++) {
+      var dt = new Date(y, m, dd), k = ymd(dt), o = open[k], dow = dt.getDay();
+      var cls = 'cell locked', note = '';
+      if (o) {
+        var left = Math.max(o.m, o.a);
+        if (left > 0) { cls = 'cell open'; note = (o.m > 0 ? t('morning') + ' ' + o.m : '') + (o.m > 0 && o.a > 0 ? ' · ' : '') + (o.a > 0 ? t('afternoon') + ' ' + o.a : ''); }
+        else { note = t('full'); }
+      } else if (hol[k]) { cls = 'cell locked hol'; note = hol[k]; }
+      else if (dow === 0 || dow === 6) { note = ''; }
+      else if (k <= last && k >= today) { note = t('past'); }
+      if (pick.date === k) cls += ' sel';
+      html += (cls.indexOf('open') > -1 ? '<button type="button" class="' + cls + '" data-d="' + k + '">' : '<div class="' + cls + '" title="' + esc(note) + '">')
+        + '<div class="n">' + dd + '</div><div>' + esc(note) + '</div>' + (cls.indexOf('open') > -1 ? '</button>' : '</div>');
+    }
+    html += '</div><div class="legend"><span><i style="background:#f0fdfa;border-color:#5eead4;"></i>' + esc(t('lgOpen')) + '</span>'
+      + '<span><i style="background:#fef2f2;"></i>' + esc(t('lgHol')) + '</span><span><i style="background:#f1f5f9;"></i>' + esc(t('lgOff')) + '</span></div>';
+    box.innerHTML = html;
+    renderSlots(open);
+  }
+  function renderSlots(open) {
+    var sb = $('slots'), o = pick.date && open[pick.date];
+    if (!o) { sb.innerHTML = ''; return; }
+    sb.innerHTML = '<div style="width:100%;font-weight:600;">' + esc(fmt(t('pickSlot'), { date: dLabel(pick.date) })) + '</div>' + ['morning', 'afternoon'].map(function (s) {
+      var left = s === 'morning' ? o.m : o.a;
+      return '<button type="button" class="slot' + (pick.slot === s ? ' on' : '') + '" data-s="' + s + '"' + (left > 0 ? '' : ' disabled') + '>'
+        + esc(t(s)) + (s === 'morning' ? ' 08:30–11:30' : ' 13:00–15:00') + '<br><small>' + (left > 0 ? esc(t('left')) + ' ' + left : esc(t('full'))) + '</small></button>';
+    }).join('');
+  }
+  $('days').addEventListener('click', function (e) {
+    var nv = e.target.closest('.cal-nav');
+    if (nv && !nv.disabled) { var y = +calMonth.slice(0, 4), m = +calMonth.slice(5, 7) - 1 + (+nv.dataset.nav); var d = new Date(y, m, 1); calMonth = ymd(d).slice(0, 7); renderDays(); return; }
+    var c = e.target.closest('.cell.open'); if (!c) return;
+    pick = { date: c.dataset.d, slot: '' };
+    var o = (state.days || []).filter(function (x) { return x.d === c.dataset.d; })[0];
+    if (o && (o.m > 0) !== (o.a > 0)) pick.slot = o.m > 0 ? 'morning' : 'afternoon';   // เหลือรอบเดียว เลือกให้เลย
+    renderDays(); summary();
+  });
+  $('slots').addEventListener('click', function (e) {
+    var b = e.target.closest('.slot'); if (!b || b.disabled) return;
+    pick.slot = b.dataset.s; renderDays(); summary();
+  });
+
+  // Cloudflare Turnstile — โหลดเมื่อมี Site key · token อายุ 5 นาที ใช้ได้ครั้งเดียว (ส่งไม่ผ่านต้อง reset)
+  function loadTurnstile() {
+    if (!TS_KEY || tsWidget !== null || window.__tsLoading) return;
+    window.__tsLoading = true;
+    window.onTsLoad = function () {
+      tsWidget = turnstile.render('#ts', { sitekey: TS_KEY, language: lang === 'th' ? 'th' : 'en',
+        callback: function (tok) { tsToken = tok; }, 'expired-callback': function () { tsToken = ''; }, 'error-callback': function () { tsToken = ''; } });
+    };
+    var sc = document.createElement('script');
+    sc.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onTsLoad&render=explicit';
+    sc.async = true; document.head.appendChild(sc);
+  }
+
+  var people = $('people');
+  for (var i = 1; i <= 5; i++) { var o = document.createElement('option'); o.value = i; o.textContent = i; people.appendChild(o); }
+  people.onchange = function () { renderPersons(false); summary(); };
+
+  function renderPersons(keep) {
+    var n = +people.value, box = $('persons'), old = keep ? collect() : collect();
+    var vs = (state && state.vaccines) || [];
+    var html = '';
+    for (var i = 0; i < n; i++) {
+      var p = old[i] || { label: '', vaccines: [], other: '' };
+      html += '<div class="person" data-i="' + i + '"><b>' + esc(t('person')) + ' ' + (i + 1) + '</b>'
+        + '<input type="text" class="p-label" maxlength="60" placeholder="' + esc(t('label')) + '" value="' + esc(p.label) + '" style="margin:6px 0;">'
+        + vs.map(function (v) {
+          return '<label class="chk"><input type="checkbox" class="p-v" value="' + v.id + '"' + (p.vaccines.indexOf(v.id) > -1 ? ' checked' : '') + '> ' + esc(lang === 'en' ? v.en : v.th) + '</label>';
+        }).join('')
+        + '<input type="text" class="p-other" maxlength="150" placeholder="' + esc(t('other')) + '" value="' + esc(p.other) + '" style="margin-top:6px;"></div>';
+    }
+    box.innerHTML = html;
+  }
+  function collect() {
+    return Array.prototype.map.call(document.querySelectorAll('#persons .person'), function (el) {
+      return {
+        label: el.querySelector('.p-label').value.trim(),
+        vaccines: Array.prototype.map.call(el.querySelectorAll('.p-v:checked'), function (c) { return +c.value; }),
+        other: el.querySelector('.p-other').value.trim()
+      };
+    });
+  }
+  // คนที่รับ 3 รายการขึ้นไปนับ 2 ที่ — ตัวเดียวกับ TmcBooking::unitsFor (server คิดซ้ำเอง)
+  function unitsOf(ps) { return ps.reduce(function (u, p) { var n = p.vaccines.length + (p.other ? 1 : 0); return u + (n >= 3 ? 2 : 1); }, 0) || 1; }
+  $('persons').addEventListener('change', summary); $('persons').addEventListener('input', summary);
+
+  function summary() {
+    if (!$('summary')) return;
+    var ps = collect(), u = unitsOf(ps);
+    $('unitsInfo').textContent = fmt(t('unitsInfo'), { n: u });
+    // เลือกวันแล้วแต่ยังไม่เลือกรอบ = ยังไม่สรุป (เดิมขึ้น "รอบundefined")
+    $('summary').textContent = pick.date && pick.slot ? fmt(t('summary'), { date: dLabel(pick.date), slot: t(pick.slot), people: ps.length, units: u }) : '';
+  }
+
+  function b64(buf) { return btoa(String.fromCharCode.apply(null, new Uint8Array(buf))); }
+  function unb64(s) { return Uint8Array.from(atob(s), function (c) { return c.charCodeAt(0); }); }
+  // AES-GCM ห่อเนื้อหา + RSA-OAEP(SHA-1) ห่อกุญแจ — ตัวเดียวกับฟอร์มผูก LINE · server ถอดด้วย TmcBookingCrypto
+  async function seal(obj) {
+    var pub = await crypto.subtle.importKey('spki', unb64(PUBKEY), { name: 'RSA-OAEP', hash: 'SHA-1' }, false, ['encrypt']);
+    var key = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt']);
+    var iv = crypto.getRandomValues(new Uint8Array(12));
+    var data = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, key, new TextEncoder().encode(JSON.stringify(obj)));
+    var raw = await crypto.subtle.exportKey('raw', key);
+    var k = await crypto.subtle.encrypt({ name: 'RSA-OAEP' }, pub, raw);
+    return { k: b64(k), iv: b64(iv), d: b64(data) };
+  }
+
+  $('submit').onclick = async function () {
+    var err = $('err'); err.textContent = '';
+    var ps = collect(), name = $('name').value.trim(), phone = $('phone').value.trim();
+    if (!pick.date || !pick.slot) { err.textContent = t('eDate'); return; }
+    if (ps.some(function (p) { return !p.vaccines.length && !p.other; })) { err.textContent = t('eVaccine'); return; }
+    if (!name || phone.replace(/\D/g, '').length < 6) { err.textContent = t('eName'); return; }
+    if (TS_KEY && !tsToken) { err.textContent = t('eTs'); return; }
+    var btn = this; btn.disabled = true; btn.textContent = t('sending');
+    try {
+      var box = await seal({ persons: ps, name: name, phone: phone, note: $('note').value.trim(), lang: lang });
+      var res = await fetch(RELAY, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ date: pick.date, slot: pick.slot, units: unitsOf(ps), dev: dev, box: box,
+                               hp: $('website').value, ms: Date.now() - t0, ts: tsToken }) });
+      var out = await res.json();
+      if (!out.ok) {
+        var m = { full: 'eFull', cutoff: 'eCutoff', closed_day: 'eClosedDay', too_many: 'eMany', closed: 'eClosed', bot: 'eBot', too_fast: 'eFast' }[out.error] || 'eSend';
+        if (tsWidget !== null) { try { turnstile.reset(tsWidget); } catch (e) {} tsToken = ''; }
+        err.textContent = t(m); if (m === 'eFull' || m === 'eCutoff' || m === 'eClosedDay') { pick = { date: '', slot: '' }; loadState(); summary(); }
+        return;
+      }
+      $('doneCode').textContent = out.code;
+      var nowD = new Date();
+      done = { code: out.code, sum: fmt(t('ticketSum'), { date: dLabel(pick.date), slot: t(pick.slot), people: ps.length }),
+               at: fmt(t('ticketNow'), { t: dLabel(ymd(nowD)) + ' ' + ('0' + nowD.getHours()).slice(-2) + ':' + ('0' + nowD.getMinutes()).slice(-2) }) };
+      $('doneSum').textContent = done.sum; $('doneNow').textContent = done.at;
+      try { var saved = JSON.parse(localStorage.getItem('tmcbk_codes') || '[]'); saved.unshift(out.code); localStorage.setItem('tmcbk_codes', JSON.stringify(saved.slice(0, 5))); } catch (e) {}
+      $('stepForm').classList.add('hidden'); $('stepDone').classList.remove('hidden'); window.scrollTo(0, 0);
+    } catch (e) {
+      err.textContent = t('eSend');
+    } finally {
+      btn.disabled = false; btn.textContent = t('submit');
+    }
+  };
+  $('again').onclick = function () { location.reload(); };
+  var done = null;
+  // วาดรหัสจองเป็นรูป PNG ให้ดาวน์โหลด — เผื่อคนที่ไม่ถนัดถ่ายภาพหน้าจอ
+  $('saveImg').onclick = function () {
+    if (!done) return;
+    var c = document.createElement('canvas'), W = 900, H = 520; c.width = W; c.height = H;
+    var g = c.getContext('2d'), F = "'IBM Plex Sans Thai', sans-serif";
+    g.fillStyle = '#ffffff'; g.fillRect(0, 0, W, H);
+    g.fillStyle = '#0f766e'; g.fillRect(0, 0, W, 90);
+    g.fillStyle = '#ffffff'; g.font = '600 30px ' + F; g.fillText(lang === 'th' ? 'จองคิววัคซีน สคร.1 เชียงใหม่' : 'Vaccine booking · ODPC1 Chiang Mai', 36, 58);
+    g.fillStyle = '#64748b'; g.font = '24px ' + F; g.fillText(t('ticketH'), 36, 150);
+    g.fillStyle = '#ccfbf1'; g.fillRect(36, 170, W - 72, 120);
+    g.fillStyle = '#0f172a'; g.font = '700 84px ui-monospace, monospace'; g.fillText(done.code, 60, 262);
+    g.font = '600 30px ' + F; g.fillText(done.sum, 36, 350);
+    g.fillStyle = '#64748b'; g.font = '22px ' + F; g.fillText(done.at, 36, 392);
+    g.fillText(lang === 'th' ? 'รอเจ้าหน้าที่ยืนยัน · เช็คผลในเว็บด้วยรหัสจอง · โทร 053-140774' : 'Waiting for confirmation · check status on the website · Tel +66 53 140 774', 36, 450);
+    var a = document.createElement('a'); a.download = done.code + '.png'; a.href = c.toDataURL('image/png'); document.body.appendChild(a); a.click(); a.remove();
+  };
+
+  $('checkBtn').onclick = function () {
+    var c = $('checkCode').value.trim().toUpperCase(), out = $('checkOut');
+    if (!c) return;
+    out.innerHTML = '<span class="muted">' + esc(t('loading')) + '</span>';
+    fetch(RELAY + '?action=status&code=' + encodeURIComponent(c)).then(function (r) { return r.json(); }).then(function (j) {
+      if (!j.ok) { out.innerHTML = '<div class="err">' + esc(t('notFound')) + '</div>'; return; }
+      var col = { pending: '#ca8a04', confirmed: '#15803d', rejected: '#b91c1c', cancelled: '#64748b', arrived: '#0e7490', no_show: '#7c2d12' }[j.status] || '#64748b';
+      out.innerHTML = '<div><b style="font-family:monospace;">' + esc(j.code) + '</b> <span class="pill" style="background:' + col + ';">' + esc(T[lang].st[j.status] || j.status) + '</span></div>'
+        + '<div style="margin-top:6px;">' + esc(dLabel(j.date)) + ' · ' + esc(t(j.slot)) + (j.people ? ' · ' + j.people + ' ' + esc(t('persons')) : '') + '</div>'
+        + (j.note ? '<div style="margin-top:6px;">📝 ' + esc(j.note) + '</div>' : '')
+        + '<div class="muted" style="margin-top:6px;">' + esc((T[lang].stHint || {})[j.status] || '') + '</div>';
+    }).catch(function () { out.innerHTML = '<div class="err">' + esc(t('eSend')) + '</div>'; });
+  };
+  try { var last = JSON.parse(localStorage.getItem('tmcbk_codes') || '[]'); if (last[0]) $('checkCode').value = last[0]; } catch (e) {}
+
+  applyLang();
+})();
+</script>
+</body>
+</html>

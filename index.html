@@ -32,6 +32,14 @@
   .btn { display:inline-block; padding:11px 18px; border-radius:10px; border:0; background:var(--brand); color:#fff; font:inherit; font-weight:600; cursor:pointer; text-decoration:none; }
   .btn:disabled { opacity:.5; cursor:not-allowed; }
   .btn.ghost { background:#fff; color:var(--brand); border:1px solid var(--brand); }
+  /* หน้าต่างข้อจำกัดของวัคซีน (2569-11-13) */
+  .vn-back { position:fixed; inset:0; background:rgba(15,23,42,.55); display:flex; align-items:center; justify-content:center; padding:16px; z-index:50; }
+  .vn-box { background:#fff; border-radius:14px; max-width:480px; width:100%; max-height:85vh; overflow:auto; padding:18px; box-shadow:0 10px 30px rgba(0,0,0,.25); }
+  .vn-box h3 { margin:0 0 4px; font-size:1.1rem; }
+  .vn-box .vn-name { color:var(--brand); font-weight:700; margin-bottom:10px; }
+  .vn-box .vn-text { white-space:pre-line; background:#fff7ed; border:1px solid #fdba74; border-radius:10px; padding:10px 12px; line-height:1.6; }
+  .vn-box .vn-act { display:flex; gap:8px; justify-content:flex-end; margin-top:14px; flex-wrap:wrap; }
+  .ack { color:#15803d; font-size:.85rem; margin-left:4px; }
   /* ปฏิทินรายเดือน — วันหยุด/เสาร์อาทิตย์/วันเต็ม ล็อก (กดไม่ได้) */
   .cal-head { display:flex; align-items:center; justify-content:space-between; margin:4px 0 8px; }
   .cal-head b { font-size:1.05rem; }
@@ -174,6 +182,7 @@
   var PUBKEY = 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAkEo4F6q91IhAeIzh06zn2mDPZB5KpAblGqredq10LGQry6LmEXi8d0vQUjfnNUEG4tpkn0IU0hRvkvJ4KwSm4bbMqBipTUFtLHwMuGN9LrQOVDn7LgqvEO2Df/AbnN7HIknTc8YwPWPI+adGeXeMbkSqtzi9eOvWi8rjMZnBimK/zDqAhCKwhxHarANf+KutSgD5Lo0KxbhYqtbU4TfSEWfI3f4bCA1nXliMdCspidxhFo5s405QLmlWu3YRr90Hdtmlnol9MZjfgqP75rfwWmOEUN94s2n+aYq20eyLhQlFOBHg0Ou8Yo6TObpEbtb9nPOhPFYEXS98k/vFMS8lFwIDAQAB';
   var TS_KEY = '0x4AAAAAAF_A6CQhqMdMOHid';   // ว่าง = ไม่ใช้ Turnstile
   var t0 = Date.now(), tsToken = '', tsWidget = null, calMonth = null;
+  var acked = {};   // วัคซีนที่กดรับทราบข้อจำกัดแล้ว {id: true}
   var $ = function (id) { return document.getElementById(id); };
 
   var T = {
@@ -199,7 +208,7 @@
       saveImg: '⬇ บันทึกเป็นรูป',
       calPrev: '‹ เดือนก่อน', calNext: 'เดือนถัดไป ›', lgOpen: 'จองได้', lgFull: 'เต็ม', lgHol: 'วันหยุด', lgOff: 'ปิด/เลยกำหนด',
       pickSlot: 'เลือกรอบของวันที่ {date}', weekend: 'เสาร์-อาทิตย์', past: 'เลยกำหนด',
-      eBot: 'ระบบยืนยันว่าไม่ใช่บอทไม่ผ่าน กรุณาทำเครื่องหมายยืนยันอีกครั้ง', eFast: 'กรุณาตรวจข้อมูลอีกครั้ง แล้วกดส่ง', eTs: 'กรุณารอให้ช่องยืนยัน "ไม่ใช่บอท" ขึ้นเครื่องหมายถูกก่อน', doneSave: 'นี่คือรหัสจองของท่าน กรุณาจดหรือถ่ายภาพหน้าจอเก็บไว้ ใช้เช็คสถานะและแจ้งยกเลิก/เลื่อนนัด',
+      eBot: 'ระบบยืนยันว่าไม่ใช่บอทไม่ผ่าน กรุณาทำเครื่องหมายยืนยันอีกครั้ง', eFast: 'กรุณาตรวจข้อมูลอีกครั้ง แล้วกดส่ง', vnH: 'ข้อจำกัด / ข้อควรรู้ก่อนรับวัคซีน', vnOk: 'รับทราบ', vnNo: 'ไม่เลือกวัคซีนนี้', vnAcked: 'รับทราบแล้ว', eTs: 'กรุณารอให้ช่องยืนยัน "ไม่ใช่บอท" ขึ้นเครื่องหมายถูกก่อน', doneSave: 'นี่คือรหัสจองของท่าน กรุณาจดหรือถ่ายภาพหน้าจอเก็บไว้ ใช้เช็คสถานะและแจ้งยกเลิก/เลื่อนนัด',
       doneLineH: 'รับแจ้งผลทาง LINE (แนะนำ)', doneLine1: 'เพิ่มเพื่อน LINE ของคลินิก', doneLine2: 'พิมพ์รหัสจองข้างบนส่งในแชต — เจ้าหน้าที่ยืนยันแล้วระบบจะแจ้งทาง LINE',
       doneNoLine: 'ไม่มี LINE: เช็คผลได้ที่แท็บ "เช็คสถานะการจอง" ด้วยรหัสจอง · เจ้าหน้าที่ยืนยันภายใน 10:00 ของวันทำการถัดไป',
       doneChange: 'ยกเลิกหรือเลื่อนนัด: แจ้งทาง LINE หรือโทร 053-140774 (ทำในเว็บไม่ได้)', again: 'จองเพิ่ม',
@@ -239,7 +248,7 @@
       saveImg: '⬇ Save as image',
       calPrev: '‹ Previous', calNext: 'Next ›', lgOpen: 'Available', lgFull: 'Full', lgHol: 'Holiday', lgOff: 'Closed / passed',
       pickSlot: 'Choose a session for {date}', weekend: 'Weekend', past: 'Closed',
-      eBot: 'The "not a robot" check failed. Please tick the check again.', eFast: 'Please check your details, then send again.', eTs: 'Please wait for the "not a robot" check to show a tick first.', doneSave: 'This is your booking code. Please write it down or take a screenshot. You need it to check the status and to cancel or change.',
+      eBot: 'The "not a robot" check failed. Please tick the check again.', eFast: 'Please check your details, then send again.', vnH: 'Before you choose this vaccine', vnOk: 'I understand', vnNo: 'Do not choose', vnAcked: 'Read', eTs: 'Please wait for the "not a robot" check to show a tick first.', doneSave: 'This is your booking code. Please write it down or take a screenshot. You need it to check the status and to cancel or change.',
       doneLineH: 'Get the result on LINE (recommended)', doneLine1: 'Add the clinic as a LINE friend:', doneLine2: 'Send the booking code above in the chat. When staff confirm, you will be notified on LINE.',
       doneNoLine: 'No LINE? Check the result in the "Check my booking" tab with your code. Staff confirm by 10:00 on the next working day.',
       doneChange: 'To cancel or change: message us on LINE or call +66 53 140 774 (not possible on this website).', again: 'Make another booking',
@@ -385,7 +394,8 @@
       html += '<div class="person" data-i="' + i + '"><b>' + esc(t('person')) + ' ' + (i + 1) + '</b>'
         + '<input type="text" class="p-label" maxlength="60" placeholder="' + esc(t('label')) + '" value="' + esc(p.label) + '" style="margin:6px 0;">'
         + vs.map(function (v) {
-          return '<label class="chk"><input type="checkbox" class="p-v" value="' + v.id + '"' + (p.vaccines.indexOf(v.id) > -1 ? ' checked' : '') + '> ' + esc(lang === 'en' ? v.en : v.th) + '</label>';
+          return '<label class="chk"><input type="checkbox" class="p-v" value="' + v.id + '"' + (p.vaccines.indexOf(v.id) > -1 ? ' checked' : '') + '> ' + esc(lang === 'en' ? v.en : v.th)
+            + (noticeOf(v) ? ' <span class="ack" data-ack="' + v.id + '">' + (acked[v.id] ? '✓ ' + esc(t('vnAcked')) : 'ⓘ') + '</span>' : '') + '</label>';
         }).join('')
         + '<input type="text" class="p-other" maxlength="150" placeholder="' + esc(t('other')) + '" value="' + esc(p.other) + '" style="margin-top:6px;"></div>';
     }
@@ -396,6 +406,7 @@
       return {
         label: el.querySelector('.p-label').value.trim(),
         vaccines: Array.prototype.map.call(el.querySelectorAll('.p-v:checked'), function (c) { return +c.value; }),
+        ack: Array.prototype.filter.call(el.querySelectorAll('.p-v:checked'), function (c) { return acked[c.value]; }).map(function (c) { return +c.value; }),
         other: el.querySelector('.p-other').value.trim()
       };
     });
@@ -403,6 +414,40 @@
   // คนที่รับ 3 รายการขึ้นไปนับ 2 ที่ — ตัวเดียวกับ TmcBooking::unitsFor (server คิดซ้ำเอง)
   function unitsOf(ps) { return ps.reduce(function (u, p) { var n = p.vaccines.length + (p.other ? 1 : 0); return u + (n >= 3 ? 2 : 1); }, 0) || 1; }
   $('persons').addEventListener('change', summary); $('persons').addEventListener('input', summary);
+
+  // ข้อจำกัดของวัคซีน (2569-11-13): ติ๊กวัคซีนที่พยาบาลใส่ข้อความไว้ = ขึ้นหน้าต่างให้อ่าน กด "รับทราบ" ถึงจะติ๊กค้าง
+  // กดยกเลิก/ปิด = เอาติ๊กออก · รับทราบแล้วครั้งเดียวพอ (คนอื่นในการจองเดียวกันเลือกตัวเดิมไม่ถามซ้ำ)
+  // acked ประกาศไว้บนสุด (renderPersons ใช้ก่อนถึงตรงนี้ได้)
+  function noticeOf(v) { return v && (lang === 'en' ? (v.ne || v.nt) : (v.nt || v.ne)) || ''; }
+  function vaccineById(id) { return ((state && state.vaccines) || []).filter(function (v) { return String(v.id) === String(id); })[0]; }
+  function markAck(id) {
+    Array.prototype.forEach.call(document.querySelectorAll('[data-ack="' + id + '"]'), function (s) { s.textContent = '✓ ' + t('vnAcked'); });
+  }
+  function showNotice(v, onOk, onCancel) {
+    var back = document.createElement('div'); back.className = 'vn-back';
+    back.innerHTML = '<div class="vn-box" role="dialog" aria-modal="true"><h3>' + esc(t('vnH')) + '</h3>'
+      + '<div class="vn-name">' + esc(lang === 'en' ? v.en : v.th) + '</div>'
+      + '<div class="vn-text"></div>'
+      + '<div class="vn-act"><button type="button" class="btn ghost" data-x="no">' + esc(t('vnNo')) + '</button>'
+      + '<button type="button" class="btn" data-x="ok">' + esc(t('vnOk')) + '</button></div></div>';
+    back.querySelector('.vn-text').textContent = noticeOf(v);
+    function close(ok) { document.body.removeChild(back); document.removeEventListener('keydown', esc_); (ok ? onOk : onCancel)(); }
+    function esc_(e) { if (e.key === 'Escape') { close(false); } }
+    back.addEventListener('click', function (e) {
+      if (e.target === back) { close(false); return; }
+      var b = e.target.closest('[data-x]'); if (b) { close(b.dataset.x === 'ok'); }
+    });
+    document.addEventListener('keydown', esc_);
+    document.body.appendChild(back);
+    back.querySelector('[data-x="ok"]').focus();
+  }
+  $('persons').addEventListener('change', function (e) {
+    var c = e.target; if (!c.classList || !c.classList.contains('p-v') || !c.checked) return;
+    var v = vaccineById(c.value);
+    if (!noticeOf(v) || acked[v.id]) return;
+    showNotice(v, function () { acked[v.id] = true; markAck(v.id); summary(); },
+                  function () { c.checked = false; summary(); });
+  });
 
   function summary() {
     if (!$('summary')) return;
